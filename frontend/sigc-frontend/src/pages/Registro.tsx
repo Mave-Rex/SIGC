@@ -363,10 +363,6 @@ export default function App() {
       },
     };
 
-    // IMPORTANTE: no envíes "borrador" si tu backend no lo acepta (puede dar 422)
-    // Si tu backend sí lo maneja, entonces descomenta:
-    // (payload as any).borrador = mode === "draft";
-
     const res = await api.post("/api/registro", payload);
 
     if (res?.data?.rei_id) {
@@ -899,7 +895,7 @@ export default function App() {
             padding: "0 18px",
             borderRadius: 12,
             border: "none",
-            background: "linear-gradient(135deg,#22c55e,#16a34a)",
+            background: "linear-gradient(135deg,#218849,#16a34a)",
             color: "#fff",
             fontWeight: 800,
             cursor: "pointer",
@@ -1127,6 +1123,7 @@ export default function App() {
           "radial-gradient(700px 380px at 85% 16%, rgba(31,58,90,.18), transparent 60%)," +
           "linear-gradient(180deg, var(--bg1), var(--bg2))",
         padding: 26,
+        boxSizing: "border-box",
       }}
     >
 
@@ -1144,7 +1141,7 @@ export default function App() {
           <button
             onClick={() => navigate("/dashboard")}
             style={{
-              background: "linear-gradient(135deg, #218849, #16a34a)",
+              background: "linear-gradient(135deg, #3d2259, #a31edd)",
               color: "#fff",
               border: "none",
               padding: "10px 20px",
@@ -1193,7 +1190,7 @@ export default function App() {
             onClick={() => postRegistro("final")}
             disabled={saving}
             style={{
-              background: "linear-gradient(90deg, rgba(31,58,90,.96), rgba(45,106,106,.96))",
+              background: "linear-gradient(90deg, #218849, #16a34a)",
               color: "#fff",
               border: "none",
               padding: "10px 20px",
@@ -1214,7 +1211,7 @@ export default function App() {
                 e.currentTarget.style.transform = "translateY(-2px)";
                 e.currentTarget.style.boxShadow = "0 10px 22px rgba(0,0,0,0.25)";
                 e.currentTarget.style.background =
-                  "linear-gradient(90deg, rgba(31,58,90,1), rgba(45,106,106,1))";
+                  "linear-gradient(90deg, #218849, #16a34a)";
               }
             }}
             onMouseLeave={(e) => {
@@ -1222,7 +1219,7 @@ export default function App() {
                 e.currentTarget.style.transform = "translateY(0)";
                 e.currentTarget.style.boxShadow = "0 8px 18px rgba(0,0,0,0.20)";
                 e.currentTarget.style.background =
-                  "linear-gradient(90deg, rgba(31,58,90,.96), rgba(45,106,106,.96))";
+                  "linear-gradient(90deg, #218849, #16a34a)";
               }
             }}
           >
@@ -1258,71 +1255,76 @@ export default function App() {
 
         <div className="footerRight">
           <div
-  style={{
-    display: "flex",
-    gap: "12px",
-    justifyContent: "flex-end",
-    width: "100%",
-    flexWrap: "wrap",
-  }}
->
-  {/* Anterior */}
-  <button
-    onClick={goPrev}
-    disabled={stepIndex === 0}
-    style={{
-      flex: "0 0 180px",     // 👈 tamaño fijo en desktop
-      padding: "10px 16px",
-      borderRadius: "10px",
-      border: "1px solid #cbd5e1",
-      background: stepIndex === 0 ? "#e5e7eb" : "#ffffff",
-      color: "#334155",
-      fontWeight: 600,
-      cursor: stepIndex === 0 ? "not-allowed" : "pointer",
-      boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
-      transition: "all .2s ease",
-    }}
-  >
-    ← Anterior
-  </button>
+            style={{
+              display: "flex",
+              gap: "12px",
+              justifyContent: "flex-end",
+              width: "100%",
+              flexWrap: "wrap",
+            }}
+    >
+      {/* Anterior */}
+      <button
+        onClick={goPrev}
+        disabled={stepIndex === 0}
+        style={{
+          flex: "0 0 180px",     // 👈 tamaño fijo en desktop
+          padding: "10px 16px",
+          borderRadius: "10px",
+          border: "1px solid #cbd5e1",
+          background: stepIndex === 0 ? "#e5e7eb" : "#ffffff",
+          color: "#334155",
+          fontWeight: 600,
+          cursor: stepIndex === 0 ? "not-allowed" : "pointer",
+          boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
+          transition: "all .2s ease",
+        }}
+      >
+        ← Anterior
+      </button>
 
-  {/* Siguiente */}
-  <button
-    onClick={goNext}
-    disabled={stepIndex === STEPS.length - 1}
-    style={{
-      flex: "0 0 180px",     // 👈 tamaño fijo en desktop
-      padding: "10px 16px",
-      borderRadius: "10px",
-      border: "none",
-      background:
-        stepIndex === STEPS.length - 1
-          ? "#9ca3af"
-          : "linear-gradient(90deg, rgba(18, 68, 128, 0.96), rgba(26, 148, 204, 0.96))",
-      color: "#fff",
-      fontWeight: 600,
-      cursor:
-        stepIndex === STEPS.length - 1 ? "not-allowed" : "pointer",
-      boxShadow: "0 4px 10px rgba(0,0,0,0.15)",
-      transition: "all .2s ease",
-    }}
-  >
-    Siguiente →
-  </button>
-</div>
-
-        </div>
-      </footer>
-
-      {toast ? (
-        <div className={`toast ${toast.type}`}>
-          <div className="toastMsg">{toast.msg}</div>
-          <button className="toastX" onClick={() => setToast(null)}>
-            ✕
-          </button>
-        </div>
-      ) : null}
+      {/* Siguiente */}
+      <button
+        onClick={goNext}
+        disabled={stepIndex === STEPS.length - 1}
+        style={{
+          flex: "0 0 180px",     // 👈 tamaño fijo en desktop
+          padding: "10px 16px",
+          borderRadius: "10px",
+          border: "none",
+          background:
+            stepIndex === STEPS.length - 1
+              ? "#9ca3af"
+              : "linear-gradient(90deg, rgba(18, 68, 128, 0.96), rgba(26, 148, 204, 0.96))",
+          color: "#fff",
+          fontWeight: 600,
+          cursor:
+            stepIndex === STEPS.length - 1 ? "not-allowed" : "pointer",
+          boxShadow: "0 4px 10px rgba(0,0,0,0.15)",
+          transition: "all .2s ease",
+        }}
+      >
+        Siguiente →
+      </button>
     </div>
+
+            </div>
+          </footer>
+          <div style={{ height: 18 }} />
+          <div style={{ color:"#334155", textAlign: "center", fontWeight: 800, opacity: 0.9 }}>
+            SIGC · Formulario de Registro · {new Date().getFullYear()}
+          </div>
+
+          {toast ? (
+            <div className={`toast ${toast.type}`}>
+              <div className="toastMsg">{toast.msg}</div>
+              <button className="toastX" onClick={() => setToast(null)}>
+                ✕
+              </button>
+            </div>
+          ) : null}
+        </div>
+        
   );
 }
 
