@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo,useRef, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
@@ -81,9 +81,11 @@ type ProyectoRow = {
   estado: string;
 };
 
-type UniFilter = "UC" | "ESPOL" | "AMBAS";
+type UniSel = string; // cat_siglas
 
-const YEARS = [2025, 2024]; // mayor a menor, como prefieres
+
+const YEARS = Array.from({ length: 2026 - 2015 + 1 }, (_, i) => 2026 - i);
+ // mayor a menor, como prefieres
 
 const palette = {
   bg1: "#f2f7f6",
@@ -541,31 +543,48 @@ function sortBy<T>(arr: T[], key: keyof T, dir: "asc" | "desc") {
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const didInitDefaults = useRef(false);
 
   const [universidades, setUniversidades] = useState<UniversidadOut[]>([]);
-  const [uniFilter, setUniFilter] = useState<UniFilter>("AMBAS");
-  const [year, setYear] = useState<number>(2024);
+  const [uniA, setUniA] = useState<UniSel>(""); // universidad A
+  const [uniB, setUniB] = useState<UniSel>(""); // universidad B (opcional)
+
+  const [year, setYear] = useState<number>(2025);
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const [dataUC, setDataUC] = useState<RegistroDetalleOut | null>(null);
-  const [dataESPOL, setDataESPOL] = useState<RegistroDetalleOut | null>(null);
+  const [dataA, setDataA] = useState<RegistroDetalleOut | null>(null);
+  const [dataB, setDataB] = useState<RegistroDetalleOut | null>(null);
+
 
   const [qUnits, setQUnits] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("nombre");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
+  const responsiveColumns = typeof window !== "undefined" && window.matchMedia("(max-width: 980px)").matches;
+
   useEffect(() => {
-    (async () => {
-      try {
-        const res = await axios.get(`${API_BASE}/api/universidades`);
-        setUniversidades(res.data ?? []);
-      } catch {
-        // No bloquea el dashboard
+  (async () => {
+    try {
+      const res = await axios.get(`${API_BASE}/api/universidades`);
+      const list: UniversidadOut[] = res.data ?? [];
+      setUniversidades(list);
+
+      // ✅ Solo setear defaults 1 sola vez
+      if (!didInitDefaults.current) {
+        if (!uniA && list.length) setUniA(list[0].cat_siglas);
+        if (!uniB && list.length > 1) setUniB(list[1].cat_siglas);
+        didInitDefaults.current = true;
       }
-    })();
-  }, []);
+    } catch {
+      // No bloquea
+    }
+  })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
+
+
 
   async function fetchLatestId(siglas: string, anio: number): Promise<number | null> {
     const res = await axios.get<RegistroListItemOut[]>(
@@ -582,51 +601,56 @@ export default function Dashboard() {
     return res.data;
   }
 
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      setErr(null);
+  const compareMode = Boolean(uniA && uniB && uniA !== uniB);
+  
+  
 
-      try {
-        const wantUC = uniFilter === "UC" || uniFilter === "AMBAS";
-        const wantESPOL = uniFilter === "ESPOL" || uniFilter === "AMBAS";
+useEffect(() => {
+  (async () => {
+    setLoading(true);
+    setErr(null);
 
-        let uc: RegistroDetalleOut | null = null;
-        let es: RegistroDetalleOut | null = null;
+    try {
+      let a: RegistroDetalleOut | null = null;
+      let b: RegistroDetalleOut | null = null;
 
-        if (wantUC) {
-          const id = await fetchLatestId("UC", year);
-          uc = id ? await fetchDetalle(id) : null;
-        }
-        if (wantESPOL) {
-          const id = await fetchLatestId("ESPOL", year);
-          es = id ? await fetchDetalle(id) : null;
-        }
-
-        setDataUC(uc);
-        setDataESPOL(es);
-
-        if (!uc && !es) {
-          setErr(`No hay registros para el año ${year} con el filtro seleccionado.`);
-        }
-      } catch (e: any) {
-        setErr(e?.message ?? "Error cargando datos del dashboard.");
-      } finally {
-        setLoading(false);
+      if (uniA) {
+        const idA = await fetchLatestId(uniA, year);
+        a = idA ? await fetchDetalle(idA) : null;
       }
-    })();
-  }, [uniFilter, year]);
+
+      if (compareMode) {
+        const idB = await fetchLatestId(uniB, year);
+        b = idB ? await fetchDetalle(idB) : null;
+      }
+
+      setDataA(a);
+      setDataB(b);
+
+      if (!a && !b) {
+        setErr(`No hay registros para el año ${year} con el filtro seleccionado.`);
+      }
+    } catch (e: any) {
+      setErr(e?.message ?? "Error cargando datos del dashboard.");
+    } finally {
+      setLoading(false);
+    }
+  })();
+}, [uniA, uniB, year]); // 👈 cambia dependencias
+
 
   const datasets = useMemo(() => {
-    const list: Array<{ label: string; data: RegistroDetalleOut }> = [];
-    if (dataUC) list.push({ label: "UC", data: dataUC });
-    if (dataESPOL) list.push({ label: "ESPOL", data: dataESPOL });
-    return list;
-  }, [dataUC, dataESPOL]);
+  const list: Array<{ label: string; data: RegistroDetalleOut }> = [];
+  if (dataA) list.push({ label: dataA.universidad.cat_siglas, data: dataA });
+  if (dataB) list.push({ label: dataB.universidad.cat_siglas, data: dataB });
+  return list;
+}, [dataA, dataB]);
+
 
   /** KPIs agregados (si es "Ambas", suma; si es una, usa esa) */
-  const kpis = useMemo(() => {
-    const agg = {
+  function buildKpis(d: RegistroDetalleOut | null) {
+  if (!d) {
+    return {
       totalEstudiantes: 0,
       totalAcademico: 0,
       totalPhd: 0,
@@ -638,32 +662,48 @@ export default function Dashboard() {
       countProyExternos: 0,
       countProyInternos: 0,
     };
+  }
+  return {
+    totalEstudiantes: d.rei.total_estudiantes ?? 0,
+    totalAcademico: d.rei.total_personal_academico ?? 0,
+    totalPhd: d.rei.total_personal_phd ?? 0,
+    contratadoInv: d.rei.total_personal_contratado_inv ?? 0,
+    apoyo: d.rei.total_personal_apoyo ?? 0,
+    presupuestoInterno: toNum(d.rei.presupuesto_interno),
+    presupuestoExterno: toNum(d.rei.presupuesto_externo),
+    totalUnidades: d.unidades?.length ?? 0,
+    countProyExternos: d.proyectos?.externos?.length ?? 0,
+    countProyInternos: d.proyectos?.internos?.length ?? 0,
+  };
+}
 
-    datasets.forEach(({ data }) => {
-      agg.totalEstudiantes += data.rei.total_estudiantes ?? 0;
-      agg.totalAcademico += data.rei.total_personal_academico ?? 0;
-      agg.totalPhd += data.rei.total_personal_phd ?? 0;
-      agg.contratadoInv += data.rei.total_personal_contratado_inv ?? 0;
-      agg.apoyo += data.rei.total_personal_apoyo ?? 0;
-      agg.presupuestoInterno += toNum(data.rei.presupuesto_interno);
-      agg.presupuestoExterno += toNum(data.rei.presupuesto_externo);
-      agg.totalUnidades += data.unidades?.length ?? 0;
-      agg.countProyExternos += data.proyectos?.externos?.length ?? 0;
-      agg.countProyInternos += data.proyectos?.internos?.length ?? 0;
-    });
+const kpisA = useMemo(() => buildKpis(dataA), [dataA]);
+const kpisB = useMemo(() => buildKpis(dataB), [dataB]);
 
-    return agg;
-  }, [datasets]);
+// ✅ Solo para “vista single”: usa A como el KPI principal
+const kpis = kpisA;
 
-  const donutItems = useMemo(() => {
-    const acadNoPhd = Math.max(0, kpis.totalAcademico - kpis.totalPhd);
-    return [
-      { label: "PhD", value: kpis.totalPhd, color: "rgba(31,58,90,1)" },
-      { label: "Académico (sin PhD)", value: acadNoPhd, color: "rgba(45,106,106,1)" },
-      { label: "Contratado (Inv.)", value: kpis.contratadoInv, color: "rgba(34,197,94,1)" },
-      { label: "Apoyo", value: kpis.apoyo, color: "rgba(148,163,184,1)" },
-    ];
-  }, [kpis]);
+
+  const donutItemsA = useMemo(() => {
+  const acadNoPhd = Math.max(0, kpisA.totalAcademico - kpisA.totalPhd);
+  return [
+    { label: "PhD", value: kpisA.totalPhd, color: "rgba(31,58,90,1)" },
+    { label: "Académico (sin PhD)", value: acadNoPhd, color: "rgba(45,106,106,1)" },
+    { label: "Contratado (Inv.)", value: kpisA.contratadoInv, color: "rgba(34,197,94,1)" },
+    { label: "Apoyo", value: kpisA.apoyo, color: "rgba(148,163,184,1)" },
+  ];
+}, [kpisA]);
+
+const donutItemsB = useMemo(() => {
+  const acadNoPhd = Math.max(0, kpisB.totalAcademico - kpisB.totalPhd);
+  return [
+    { label: "PhD", value: kpisB.totalPhd, color: "rgba(31,58,90,1)" },
+    { label: "Académico (sin PhD)", value: acadNoPhd, color: "rgba(45,106,106,1)" },
+    { label: "Contratado (Inv.)", value: kpisB.contratadoInv, color: "rgba(34,197,94,1)" },
+    { label: "Apoyo", value: kpisB.apoyo, color: "rgba(148,163,184,1)" },
+  ];
+}, [kpisB]);
+
 
   const unidadesAll = useMemo(() => {
     const rows = datasets.flatMap(({ label, data }) =>
@@ -742,24 +782,44 @@ export default function Dashboard() {
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "1fr 1fr",
+        gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
         gap: 12,
         width: "100%",
         maxWidth: 520,
       }}
     >
       <div style={{ display: "grid", gap: 6 }}>
-        <div style={{ fontWeight: 900, color: palette.text }}>Universidad</div>
+          <div style={{ fontWeight: 900, color: palette.text }}>Universidad A</div>
+          <Select
+            value={uniA}
+            onChange={(v) => setUniA(v)}
+            options={[
+              { value: "", label: "Selecciona..." },
+              ...universidades.map((u) => ({
+                value: u.cat_siglas,
+                label: `${u.cat_siglas} — ${u.cat_nombre_oficial}`,
+              })),
+            ]}
+          />
+        </div>
+
+      <div style={{ display: "grid", gap: 6 }}>
+        <div style={{ fontWeight: 900, color: palette.text }}>Universidad B (opcional)</div>
         <Select
-          value={uniFilter}
-          onChange={(v) => setUniFilter(v as UniFilter)}
+          value={uniB}
+          onChange={(v) => setUniB(v)}
           options={[
-            { value: "AMBAS", label: "Ambas (UC + ESPOL)" },
-            { value: "UC", label: "UC" },
-            { value: "ESPOL", label: "ESPOL" },
+            { value: "", label: "Sin comparación" },
+            ...universidades
+              .filter((u) => u.cat_siglas !== uniA)
+              .map((u) => ({
+                value: u.cat_siglas,
+                label: `${u.cat_siglas} — ${u.cat_nombre_oficial}`,
+              })),
           ]}
         />
       </div>
+
 
       <div style={{ display: "grid", gap: 6 }}>
         <div style={{ fontWeight: 900, color: palette.text }}>Año</div>
@@ -773,95 +833,283 @@ export default function Dashboard() {
       <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
         <Pill text={loading ? "Cargando..." : err ? "Sin datos" : "OK"} kind={loading ? "neutral" : err ? "danger" : "ok"} />
         <div style={{ color: palette.muted, fontWeight: 900 }}>
-          {datasets.length ? (
+          {uniA ? (
             <>
-              {datasets.map((d) => d.label).join(" + ")} · {year}
+              {compareMode ? `${uniA} vs ${uniB}` : uniA} · {year}
             </>
           ) : (
             "—"
           )}
         </div>
+
       </div>
     </div>
   );
 
-  const kpiGrid = (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(4, minmax(240px, 1fr))",
-        gap: 12,
-        width: "100%",
-        minWidth: 0,
-      }}
+const kpiGrid = !compareMode ? (
+  <div
+    style={{
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+      gap: 12,
+      width: "100%",
+    }}
+  >
+    <KpiCard
+      title="Total Estudiantes"
+      value={kpisA.totalEstudiantes.toLocaleString()}
+      hint={dataA ? "Universidad seleccionada" : "—"}
+    />
+    <KpiCard
+      title="Personal Académico"
+      value={kpisA.totalAcademico.toLocaleString()}
+      hint={`${Math.round(pct(kpisA.totalPhd, kpisA.totalAcademico))}% con PhD`}
+    />
+    <KpiCard
+      title="Presupuesto Total"
+      value={formatMoney(kpisA.presupuestoInterno + kpisA.presupuestoExterno)}
+      hint={`Interno ${formatMoney(kpisA.presupuestoInterno)} · Externo ${formatMoney(
+        kpisA.presupuestoExterno
+      )}`}
+    />
+    <KpiCard
+      title="Nº Total de Unidades"
+      value={kpisA.totalUnidades.toLocaleString()}
+      hint="Unidades registradas"
+    />
+  </div>
+) : (
+  <div
+  style={{
+    display: "grid",
+    gap: 14,
+    width: "100%",
+    gridTemplateColumns: "repeat(2, minmax(520px, 1fr))",
+    columnGap: 144,
+    alignItems: "start",
+  }}
 >
-  <KpiCard
-    title="Total Estudiantes"
-    value={kpis.totalEstudiantes.toLocaleString()}
-    hint={datasets.length ? "Suma según filtros" : "—"}
-  />
-  <KpiCard
-    title="Personal Académico"
-    value={`${kpis.totalAcademico.toLocaleString()}`}
-    hint={`${Math.round(pct(kpis.totalPhd, kpis.totalAcademico))}% con PhD`}
-  />
-  <KpiCard
-    title="Presupuesto Total"
-    value={formatMoney(kpis.presupuestoInterno + kpis.presupuestoExterno)}
-    hint={`Interno ${formatMoney(kpis.presupuestoInterno)} · Externo ${formatMoney(kpis.presupuestoExterno)}`}
-  />
-  <KpiCard
-    title="Nº Total de Unidades"
-    value={kpis.totalUnidades.toLocaleString()}
-    hint="Unidades registradas"
-  />
-</div>
 
-  );
-
-  const chartsGrid = (
+    {/* UNI A */}
     <div
       style={{
-        display: "grid",
-        gridTemplateColumns: "1.1fr 1fr",
-        gap: 12,
+        background: "rgba(255,255,255,.70)",
+        border: `1px solid ${palette.stroke}`,
+        borderRadius: 18,
+        padding: 14,
+        boxShadow: "0 18px 50px rgba(15,23,42,.08)",
       }}
     >
-      <Card
-        title="Distribución del personal"
-        subtitle="Pie/Donut (PhD, académico sin PhD, contratado inv., apoyo)."
-        right={<Pill text="Donut" />}
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
+        <div style={{ fontWeight: 950, color: palette.text, fontSize: 16 }}>
+          {uniA}
+        </div>
+        <div style={{ fontSize: 12, fontWeight: 900, color: "rgba(15,23,42,.55)" }}>
+          Universidad A
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: 12,
+        }}
       >
-        <DonutChart items={donutItems} />
-      </Card>
-
-      <div style={{ display: "grid", gap: 12 }}>
-        <Card title="Comparación de presupuestos" subtitle="Bar chart (Interno vs Externo)." right={<Pill text="Bar" />}>
-          <BarChart
-            title="Presupuestos (USD)"
-            aLabel="Interno"
-            aValue={kpis.presupuestoInterno}
-            bLabel="Externo"
-            bValue={kpis.presupuestoExterno}
-          />
-        </Card>
-
-        <Card
-          title="Proyectos (externos vs internos)"
-          subtitle="Stacked bar (conteo de proyectos)."
-          right={<Pill text="Stacked" />}
-        >
-          <StackedBar
-            title="Conteo"
-            leftLabel="Externos"
-            leftValue={kpis.countProyExternos}
-            rightLabel="Internos"
-            rightValue={kpis.countProyInternos}
-          />
-        </Card>
+        <KpiCard
+          title="Total Estudiantes"
+          value={kpisA.totalEstudiantes.toLocaleString()}
+          hint="Estudiantes matriculados"
+        />
+        <KpiCard
+          title="Personal Académico"
+          value={kpisA.totalAcademico.toLocaleString()}
+          hint={`${Math.round(pct(kpisA.totalPhd, kpisA.totalAcademico))}% con PhD`}
+        />
+        <KpiCard
+          title="Presupuesto Total"
+          value={formatMoney(kpisA.presupuestoInterno + kpisA.presupuestoExterno)}
+          hint={`Interno ${formatMoney(kpisA.presupuestoInterno)} · Externo ${formatMoney(
+            kpisA.presupuestoExterno
+          )}`}
+        />
+        <KpiCard
+          title="Nº Total de Unidades"
+          value={kpisA.totalUnidades.toLocaleString()}
+          hint="Unidades registradas"
+        />
       </div>
     </div>
-  );
+
+    {/* UNI B */}
+    <div
+      style={{
+        background: "rgba(255,255,255,.70)",
+        border: `1px solid ${palette.stroke}`,
+        borderRadius: 18,
+        padding: 14,
+        boxShadow: "0 18px 50px rgba(15,23,42,.08)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
+        <div style={{ fontWeight: 950, color: palette.text, fontSize: 16 }}>
+          {uniB}
+        </div>
+        <div style={{ fontSize: 12, fontWeight: 900, color: "rgba(15,23,42,.55)" }}>
+          Universidad B
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: 12,
+        }}
+      >
+        <KpiCard
+          title="Total Estudiantes"
+          value={kpisB.totalEstudiantes.toLocaleString()}
+          hint="Estudiantes matriculados"
+        />
+        <KpiCard
+          title="Personal Académico"
+          value={kpisB.totalAcademico.toLocaleString()}
+          hint={`${Math.round(pct(kpisB.totalPhd, kpisB.totalAcademico))}% con PhD`}
+        />
+        <KpiCard
+          title="Presupuesto Total"
+          value={formatMoney(kpisB.presupuestoInterno + kpisB.presupuestoExterno)}
+          hint={`Interno ${formatMoney(kpisB.presupuestoInterno)} · Externo ${formatMoney(
+            kpisB.presupuestoExterno
+          )}`}
+        />
+        <KpiCard
+          title="Nº Total de Unidades"
+          value={kpisB.totalUnidades.toLocaleString()}
+          hint="Unidades registradas"
+        />
+      </div>
+    </div>
+  </div>
+);
+
+
+
+
+  const chartsGrid = !compareMode ? (
+  <div
+    style={{
+      display: "grid",
+      gridTemplateColumns: responsiveColumns ? "1fr" : "1.1fr 1fr",
+      gap: 12,
+    }}
+  >
+    <Card
+      title="Distribución del personal"
+      subtitle="Pie/Donut (PhD, académico sin PhD, contratado inv., apoyo)."
+      right={<Pill text="Donut" />}
+    >
+      <DonutChart items={donutItemsA} />
+    </Card>
+
+    <div style={{ display: "grid", gap: 12 }}>
+      <Card title="Comparación de presupuestos" subtitle="Bar chart (Interno vs Externo)." right={<Pill text="Bar" />}>
+        <BarChart
+          title="Presupuestos (USD)"
+          aLabel="Interno"
+          aValue={kpisA.presupuestoInterno}
+          bLabel="Externo"
+          bValue={kpisA.presupuestoExterno}
+        />
+      </Card>
+
+      <Card
+        title="Proyectos (externos vs internos)"
+        subtitle="Stacked bar (conteo de proyectos)."
+        right={<Pill text="Stacked" />}
+      >
+        <StackedBar
+          title="Conteo"
+          leftLabel="Externos"
+          leftValue={kpisA.countProyExternos}
+          rightLabel="Internos"
+          rightValue={kpisA.countProyInternos}
+        />
+      </Card>
+    </div>
+  </div>
+) : (
+  <div
+    style={{
+      display: "grid",
+      gridTemplateColumns: responsiveColumns ? "1fr" : "repeat(2, minmax(0, 1fr))",
+      gap: 12,
+      alignItems: "start",
+      width: "100%",
+    }}
+  >
+    {/* ===== FILA 1: Donuts A y B ===== */}
+    <Card
+      title={`Distribución del personal · ${uniA}`}
+      subtitle="Pie/Donut (PhD, académico sin PhD, contratado inv., apoyo)."
+      right={<Pill text="Donut" />}
+    >
+      <DonutChart items={donutItemsA} />
+    </Card>
+
+    <Card
+      title={`Distribución del personal · ${uniB}`}
+      subtitle="Pie/Donut (PhD, académico sin PhD, contratado inv., apoyo)."
+      right={<Pill text="Donut" />}
+    >
+      <DonutChart items={donutItemsB} />
+    </Card>
+
+    {/* ===== FILA 2: Presupuestos A y B ===== */}
+    <Card title={`Presupuestos · ${uniA}`} subtitle="Bar chart (Interno vs Externo)." right={<Pill text="Bar" />}>
+      <BarChart
+        title="Presupuestos (USD)"
+        aLabel="Interno"
+        aValue={kpisA.presupuestoInterno}
+        bLabel="Externo"
+        bValue={kpisA.presupuestoExterno}
+      />
+    </Card>
+
+    <Card title={`Presupuestos · ${uniB}`} subtitle="Bar chart (Interno vs Externo)." right={<Pill text="Bar" />}>
+      <BarChart
+        title="Presupuestos (USD)"
+        aLabel="Interno"
+        aValue={kpisB.presupuestoInterno}
+        bLabel="Externo"
+        bValue={kpisB.presupuestoExterno}
+      />
+    </Card>
+
+    {/* ===== FILA 3: Proyectos A y B ===== */}
+    <Card title={`Proyectos · ${uniA}`} subtitle="Stacked bar (externos vs internos)." right={<Pill text="Stacked" />}>
+      <StackedBar
+        title="Conteo"
+        leftLabel="Externos"
+        leftValue={kpisA.countProyExternos}
+        rightLabel="Internos"
+        rightValue={kpisA.countProyInternos}
+      />
+    </Card>
+
+    <Card title={`Proyectos · ${uniB}`} subtitle="Stacked bar (externos vs internos)." right={<Pill text="Stacked" />}>
+      <StackedBar
+        title="Conteo"
+        leftLabel="Externos"
+        leftValue={kpisB.countProyExternos}
+        rightLabel="Internos"
+        rightValue={kpisB.countProyInternos}
+      />
+    </Card>
+  </div>
+);
+
 
   const unitsTable = (
     <Card
@@ -921,7 +1169,8 @@ export default function Dashboard() {
         <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 860 }}>
           <thead>
             <tr style={{ background: "rgba(15,23,42,.04)" }}>
-              <Th label={uniFilter === "AMBAS" ? "Uni" : "Uni"} />
+              <Th label={compareMode ? "Universidad" : "Universidad"} />
+
               <Th label="Nombre" />
               <Th label="Campos" />
               <Th label="Área" />
@@ -1007,8 +1256,6 @@ export default function Dashboard() {
     </Card>
   );
 
-  const responsiveColumns = typeof window !== "undefined" && window.matchMedia("(max-width: 980px)").matches;
-
   return (
     <PageShell>
       <TopBar
@@ -1029,15 +1276,10 @@ export default function Dashboard() {
 
       <div style={{ height: 12 }} />
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: responsiveColumns ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))",
-          gap: 12,
-        }}
-      >
+      <div style={{ width: "100%" }}>
         {kpiGrid}
       </div>
+
 
       <div style={{ height: 12 }} />
 

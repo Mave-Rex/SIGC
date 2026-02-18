@@ -133,8 +133,8 @@ function emptyProyecto(): ProyectoForm {
 function buildDefaultState(): FormState {
   return {
     universidad_siglas: "ESPOL",
-    anio: 2024,
-    fecha_corte: "2024-12-31",
+    anio: 2025,
+    fecha_corte: "2025-12-31",
 
     rei: {
       total_estudiantes: 0,
@@ -232,6 +232,42 @@ function validateAll(state: FormState) {
 
   return errors;
 }
+
+const Card: React.FC<{ title: string; subtitle?: string; right?: React.ReactNode; children: React.ReactNode }> = ({
+    title,
+    subtitle,
+    right,
+    children,
+  }) => (
+    <section className="card">
+      <div className="cardHead">
+        <div>
+          <div className="cardTitle">{title}</div>
+          {subtitle ? <div className="cardSub">{subtitle}</div> : null}
+        </div>
+        {right ? <div>{right}</div> : null}
+      </div>
+      <div className="cardBody">{children}</div>
+    </section>
+  );
+
+  const FieldRow: React.FC<{ children: React.ReactNode }> = ({ children }) => <div className="gridRow">{children}</div>;
+
+  const Field: React.FC<{
+    label: string;
+    hint?: string;
+    error?: string;
+    children: React.ReactNode;
+  }> = ({ label, hint, error, children }) => (
+    <label className="field">
+      <div className="fieldTop">
+        <span className="fieldLabel">{label}</span>
+        {hint ? <span className="fieldHint">{hint}</span> : null}
+      </div>
+      {children}
+      {error ? <div className="fieldError">{error}</div> : null}
+    </label>
+  );
 
 export default function App() {
   const navigate = useNavigate();
@@ -390,42 +426,6 @@ export default function App() {
     setState((s) => ({ ...s, rei: { ...s.rei, [k]: v } }));
   };
 
-  const Card: React.FC<{ title: string; subtitle?: string; right?: React.ReactNode; children: React.ReactNode }> = ({
-    title,
-    subtitle,
-    right,
-    children,
-  }) => (
-    <section className="card">
-      <div className="cardHead">
-        <div>
-          <div className="cardTitle">{title}</div>
-          {subtitle ? <div className="cardSub">{subtitle}</div> : null}
-        </div>
-        {right ? <div>{right}</div> : null}
-      </div>
-      <div className="cardBody">{children}</div>
-    </section>
-  );
-
-  const FieldRow: React.FC<{ children: React.ReactNode }> = ({ children }) => <div className="gridRow">{children}</div>;
-
-  const Field: React.FC<{
-    label: string;
-    hint?: string;
-    error?: string;
-    children: React.ReactNode;
-  }> = ({ label, hint, error, children }) => (
-    <label className="field">
-      <div className="fieldTop">
-        <span className="fieldLabel">{label}</span>
-        {hint ? <span className="fieldHint">{hint}</span> : null}
-      </div>
-      {children}
-      {error ? <div className="fieldError">{error}</div> : null}
-    </label>
-  );
-
   const errorsNow = useMemo(() => validateAll(state), [state]);
   const phdError =
     state.rei.total_personal_phd > state.rei.total_personal_academico
@@ -550,16 +550,25 @@ export default function App() {
       subtitle="Personal con PhD debe ser ≤ Total académico."
       right={phdError ? <span className="badge bad">{phdError}</span> : <span className="badge ok">OK</span>}
     >
-      <FieldRow>
-        <Field label="Total estudiantes">
-          <input
-            className="input"
-            type="number"
-            min={0}
-            value={state.rei.total_estudiantes}
-            onChange={(e) => setReiField("total_estudiantes", Math.max(0, toNumber(e.target.value)))}
-          />
-        </Field>
+     
+        <FieldRow>
+          <Field label="Total estudiantes">
+            <input
+              className="input"
+              type="number"
+              min={0}
+              value={state.rei.total_estudiantes}
+              onFocus={(e) => {
+                // ✅ si está en 0, selecciona todo para que el primer número lo reemplace
+                if (state.rei.total_estudiantes === 0) e.currentTarget.select();
+              }}
+              onChange={(e) => {
+                // (opcional) mantener tu limpieza por si el navegador permite "05"
+                const cleaned = e.target.value.replace(/^0+(?=\d)/, "");
+                setReiField("total_estudiantes", Math.max(0, toNumber(cleaned)));
+              }}
+            />
+          </Field>
 
         <Field label="Total personal académico">
           <input
@@ -567,7 +576,15 @@ export default function App() {
             type="number"
             min={0}
             value={state.rei.total_personal_academico}
-            onChange={(e) => setReiField("total_personal_academico", Math.max(0, toNumber(e.target.value)))}
+            onFocus={(e) => {
+              if (state.rei.total_personal_academico === 0) e.currentTarget.select();
+            }}
+            onChange={(e) =>
+              setReiField(
+                "total_personal_academico",
+                Math.max(0, toNumber(e.target.value))
+              )
+            }
           />
         </Field>
 
@@ -577,7 +594,15 @@ export default function App() {
             type="number"
             min={0}
             value={state.rei.total_personal_phd}
-            onChange={(e) => setReiField("total_personal_phd", Math.max(0, toNumber(e.target.value)))}
+            onFocus={(e) => {
+              if (state.rei.total_personal_phd === 0) e.currentTarget.select();
+            }}
+            onChange={(e) =>
+              setReiField(
+                "total_personal_phd",
+                Math.max(0, toNumber(e.target.value))
+              )
+            }
           />
         </Field>
 
@@ -587,7 +612,16 @@ export default function App() {
             type="number"
             min={0}
             value={state.rei.total_personal_contratado_inv}
-            onChange={(e) => setReiField("total_personal_contratado_inv", Math.max(0, toNumber(e.target.value)))}
+            onFocus={(e) => {
+              if (state.rei.total_personal_contratado_inv === 0)
+                e.currentTarget.select();
+            }}
+            onChange={(e) =>
+              setReiField(
+                "total_personal_contratado_inv",
+                Math.max(0, toNumber(e.target.value))
+              )
+            }
           />
         </Field>
 
@@ -597,7 +631,16 @@ export default function App() {
             type="number"
             min={0}
             value={state.rei.total_personal_apoyo}
-            onChange={(e) => setReiField("total_personal_apoyo", Math.max(0, toNumber(e.target.value)))}
+            onFocus={(e) => {
+              if (state.rei.total_personal_apoyo === 0)
+                e.currentTarget.select();
+            }}
+            onChange={(e) =>
+              setReiField(
+                "total_personal_apoyo",
+                Math.max(0, toNumber(e.target.value))
+              )
+            }
           />
         </Field>
       </FieldRow>
@@ -641,6 +684,10 @@ export default function App() {
             type="number"
             min={0}
             value={state.rei.presupuesto_externo}
+            onFocus={(e) => {
+              if (state.rei.total_personal_contratado_inv === 0)
+                e.currentTarget.select();
+            }}
             onChange={(e) => setReiField("presupuesto_externo", Math.max(0, toNumber(e.target.value)))}
           />
         </Field>
@@ -651,6 +698,10 @@ export default function App() {
             type="number"
             min={0}
             value={state.rei.presupuesto_interno}
+            onFocus={(e) => {
+              if (state.rei.total_personal_contratado_inv === 0)
+                e.currentTarget.select();
+            }}
             onChange={(e) => setReiField("presupuesto_interno", Math.max(0, toNumber(e.target.value)))}
           />
         </Field>
@@ -786,6 +837,10 @@ export default function App() {
                   type="number"
                   min={0}
                   value={u.num_personal_academico}
+                  onFocus={(e) => {
+                    if (state.rei.total_personal_contratado_inv === 0)
+                      e.currentTarget.select();
+                  }}
                   onChange={(e) =>
                     setState((s) => {
                       const next = [...s.unidades];
@@ -802,6 +857,10 @@ export default function App() {
                   type="number"
                   min={0}
                   value={u.num_personal_apoyo}
+                  onFocus={(e) => {
+                    if (state.rei.total_personal_contratado_inv === 0)
+                      e.currentTarget.select();
+                  }}
                   onChange={(e) =>
                     setState((s) => {
                       const next = [...s.unidades];
@@ -970,6 +1029,10 @@ export default function App() {
                     type="number"
                     min={0}
                     value={p.monto_financiamiento}
+                    onFocus={(e) => {
+                      if (state.rei.total_personal_contratado_inv === 0)
+                        e.currentTarget.select();
+                    }}
                     onChange={(e) => updateAt(idx, { monto_financiamiento: Math.max(0, toNumber(e.target.value)) })}
                   />
                 </Field>
@@ -980,6 +1043,10 @@ export default function App() {
                     type="number"
                     min={0}
                     value={p.num_participantes_internos}
+                    onFocus={(e) => {
+                      if (state.rei.total_personal_contratado_inv === 0)
+                        e.currentTarget.select();
+                    }}
                     onChange={(e) => updateAt(idx, { num_participantes_internos: Math.max(0, toNumber(e.target.value)) })}
                   />
                 </Field>
@@ -990,6 +1057,10 @@ export default function App() {
                     type="number"
                     min={0}
                     value={p.num_participantes_ext_nac}
+                    onFocus={(e) => {
+                      if (state.rei.total_personal_contratado_inv === 0)
+                        e.currentTarget.select();
+                    }}
                     onChange={(e) => updateAt(idx, { num_participantes_ext_nac: Math.max(0, toNumber(e.target.value)) })}
                   />
                 </Field>
@@ -1000,6 +1071,10 @@ export default function App() {
                     type="number"
                     min={0}
                     value={p.num_participantes_ext_int}
+                    onFocus={(e) => {
+                      if (state.rei.total_personal_contratado_inv === 0)
+                        e.currentTarget.select();
+                    }}
                     onChange={(e) => updateAt(idx, { num_participantes_ext_int: Math.max(0, toNumber(e.target.value)) })}
                   />
                 </Field>
@@ -1010,6 +1085,10 @@ export default function App() {
                     type="number"
                     min={0}
                     value={p.num_estudiantes_pregrado}
+                    onFocus={(e) => {
+                      if (state.rei.total_personal_contratado_inv === 0)
+                        e.currentTarget.select();
+                    }}
                     onChange={(e) => updateAt(idx, { num_estudiantes_pregrado: Math.max(0, toNumber(e.target.value)) })}
                   />
                 </Field>
@@ -1020,21 +1099,35 @@ export default function App() {
                     type="number"
                     min={0}
                     value={p.num_estudiantes_posgrado}
+                    onFocus={(e) => {
+                      if (state.rei.total_personal_contratado_inv === 0)
+                        e.currentTarget.select();
+                    }}
                     onChange={(e) => updateAt(idx, { num_estudiantes_posgrado: Math.max(0, toNumber(e.target.value)) })}
                   />
                 </Field>
 
                 <Field label="Fecha inicio">
-                  <input className="input" type="date" value={p.fecha_inicio} onChange={(e) => updateAt(idx, { fecha_inicio: e.target.value })} />
+                  <input className="input" type="date" value={p.fecha_inicio} onClick={(e) => (e.currentTarget as any).showPicker?.()} onChange={(e) => updateAt(idx, { fecha_inicio: e.target.value })} />
                 </Field>
 
                 <Field label="Fecha fin">
-                  <input className="input" type="date" value={p.fecha_fin} onChange={(e) => updateAt(idx, { fecha_fin: e.target.value })} />
+                  <input className="input" type="date" value={p.fecha_fin} onClick={(e) => (e.currentTarget as any).showPicker?.()} onChange={(e) => updateAt(idx, { fecha_fin: e.target.value })} />
                 </Field>
 
                 <Field label="Estado">
-                  <input className="input" value={p.estado} onChange={(e) => updateAt(idx, { estado: e.target.value })} />
-                </Field>
+                <select
+                  className="input"
+                  value={p.estado}
+                  onChange={(e) => updateAt(idx, { estado: e.target.value })}
+                >
+                  <option value="ACTIVO">Activo</option>
+                  <option value="PAUSADO">Pausado</option>
+                  <option value="CANCELADO">Cancelado</option>
+                  <option value="TERMINADO">Terminado</option>
+                </select>
+              </Field>
+
               </FieldRow>
             </div>
           ))}
@@ -1052,6 +1145,10 @@ export default function App() {
             type="number"
             min={0}
             value={state.rei.num_est_pregrado_proy}
+            onFocus={(e) => {
+              if (state.rei.total_personal_contratado_inv === 0)
+                e.currentTarget.select();
+            }}
             onChange={(e) => setReiField("num_est_pregrado_proy", Math.max(0, toNumber(e.target.value)))}
           />
         </Field>
@@ -1062,6 +1159,10 @@ export default function App() {
             type="number"
             min={0}
             value={state.rei.num_alumni_pregrado_proy}
+            onFocus={(e) => {
+              if (state.rei.total_personal_contratado_inv === 0)
+                e.currentTarget.select();
+            }}
             onChange={(e) => setReiField("num_alumni_pregrado_proy", Math.max(0, toNumber(e.target.value)))}
           />
         </Field>
@@ -1072,6 +1173,10 @@ export default function App() {
             type="number"
             min={0}
             value={state.rei.num_est_posgrado_proy}
+            onFocus={(e) => {
+              if (state.rei.total_personal_contratado_inv === 0)
+                e.currentTarget.select();
+            }}
             onChange={(e) => setReiField("num_est_posgrado_proy", Math.max(0, toNumber(e.target.value)))}
           />
         </Field>
@@ -1082,6 +1187,10 @@ export default function App() {
             type="number"
             min={0}
             value={state.rei.num_alumni_posgrado_proy}
+            onFocus={(e) => {
+              if (state.rei.total_personal_contratado_inv === 0)
+                e.currentTarget.select();
+            }}
             onChange={(e) => setReiField("num_alumni_posgrado_proy", Math.max(0, toNumber(e.target.value)))}
           />
         </Field>
