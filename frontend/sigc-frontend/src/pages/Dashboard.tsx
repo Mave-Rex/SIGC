@@ -562,27 +562,65 @@ export default function Dashboard() {
   const [sortKey, setSortKey] = useState<SortKey>("nombre");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
-  const responsiveColumns = typeof window !== "undefined" && window.matchMedia("(max-width: 980px)").matches;
+  const responsiveColumns = useMediaQuery("(max-width: 980px)");
 
-  useEffect(() => {
+  function useMediaQuery(query: string) {
+    const [matches, setMatches] = React.useState(false);
+
+    React.useEffect(() => {
+      if (typeof window === "undefined") return;
+
+      const mq = window.matchMedia(query);
+
+      // ✅ set inmediato al montar (importante)
+      setMatches(mq.matches);
+
+      const onChange = () => setMatches(mq.matches);
+
+      // compat
+      if (mq.addEventListener) mq.addEventListener("change", onChange);
+      else mq.addListener(onChange);
+
+      return () => {
+        if (mq.removeEventListener) mq.removeEventListener("change", onChange);
+        else mq.removeListener(onChange);
+      };
+    }, [query]);
+
+    return matches;
+  }
+
+
+
+ useEffect(() => {
+  let alive = true;
+
   (async () => {
     try {
       const res = await axios.get(`${API_BASE}/api/universidades`);
       const list: UniversidadOut[] = res.data ?? [];
+      if (!alive) return;
+
       setUniversidades(list);
 
-      // ✅ Solo setear defaults 1 sola vez
-      if (!didInitDefaults.current) {
-        if (!uniA && list.length) setUniA(list[0].cat_siglas);
-        if (!uniB && list.length > 1) setUniB(list[1].cat_siglas);
-        didInitDefaults.current = true;
-      }
-    } catch {
-      // No bloquea
+      const first = list[0]?.cat_siglas ?? "";
+      const second = list.find((u) => u.cat_siglas !== first)?.cat_siglas ?? "";
+
+      // Default A solo si está vacío
+      setUniA((prev) => prev || first);
+
+      // Default B solo si está vacío (y distinto de A por defecto)
+      setUniB((prev) => prev || second);
+    } catch (e) {
+      console.error("Error cargando universidades:", e);
     }
   })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
+  return () => {
+    alive = false;
+  };
 }, []);
+
 
 
 
@@ -628,7 +666,7 @@ useEffect(() => {
       setDataB(b);
 
       if (!a && !b) {
-        setErr(`No hay registros para el año ${year} con el filtro seleccionado.`);
+        setErr(`No hay registros para el año ${year}.`);
       }
     } catch (e: any) {
       setErr(e?.message ?? "Error cargando datos del dashboard.");
@@ -850,7 +888,9 @@ const kpiGrid = !compareMode ? (
   <div
     style={{
       display: "grid",
-      gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+      gridTemplateColumns: responsiveColumns
+        ? "1fr"
+        : "repeat(4, minmax(0, 1fr))",
       gap: 12,
       width: "100%",
     }}
@@ -880,16 +920,16 @@ const kpiGrid = !compareMode ? (
   </div>
 ) : (
   <div
-  style={{
-    display: "grid",
-    gap: 14,
-    width: "100%",
-    gridTemplateColumns: "repeat(2, minmax(520px, 1fr))",
-    columnGap: 144,
-    alignItems: "start",
-  }}
->
-
+    style={{
+      display: "grid",
+      gridTemplateColumns: responsiveColumns
+        ? "1fr"
+        : "repeat(2, minmax(0, 1fr))",
+      gap: 12,
+      width: "100%",
+      alignItems: "start",
+    }}
+  >
     {/* UNI A */}
     <div
       style={{
@@ -898,12 +938,19 @@ const kpiGrid = !compareMode ? (
         borderRadius: 18,
         padding: 14,
         boxShadow: "0 18px 50px rgba(15,23,42,.08)",
+        minWidth: 0, // ✅ importante para que NO empuje el grid
       }}
     >
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
-        <div style={{ fontWeight: 950, color: palette.text, fontSize: 16 }}>
-          {uniA}
-        </div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+          gap: 12,
+          marginBottom: 10,
+        }}
+      >
+        <div style={{ fontWeight: 950, color: palette.text, fontSize: 16 }}>{uniA}</div>
         <div style={{ fontSize: 12, fontWeight: 900, color: "rgba(15,23,42,.55)" }}>
           Universidad A
         </div>
@@ -912,32 +959,16 @@ const kpiGrid = !compareMode ? (
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gridTemplateColumns: responsiveColumns
+            ? "1fr"
+            : "repeat(2, minmax(0, 1fr))",
           gap: 12,
         }}
       >
-        <KpiCard
-          title="Total Estudiantes"
-          value={kpisA.totalEstudiantes.toLocaleString()}
-          hint="Estudiantes matriculados"
-        />
-        <KpiCard
-          title="Personal Académico"
-          value={kpisA.totalAcademico.toLocaleString()}
-          hint={`${Math.round(pct(kpisA.totalPhd, kpisA.totalAcademico))}% con PhD`}
-        />
-        <KpiCard
-          title="Presupuesto Total"
-          value={formatMoney(kpisA.presupuestoInterno + kpisA.presupuestoExterno)}
-          hint={`Interno ${formatMoney(kpisA.presupuestoInterno)} · Externo ${formatMoney(
-            kpisA.presupuestoExterno
-          )}`}
-        />
-        <KpiCard
-          title="Nº Total de Unidades"
-          value={kpisA.totalUnidades.toLocaleString()}
-          hint="Unidades registradas"
-        />
+        <KpiCard title="Total Estudiantes" value={kpisA.totalEstudiantes.toLocaleString()} hint="Estudiantes matriculados" />
+        <KpiCard title="Personal Académico" value={kpisA.totalAcademico.toLocaleString()} hint={`${Math.round(pct(kpisA.totalPhd, kpisA.totalAcademico))}% con PhD`} />
+        <KpiCard title="Presupuesto Total" value={formatMoney(kpisA.presupuestoInterno + kpisA.presupuestoExterno)} hint={`Interno ${formatMoney(kpisA.presupuestoInterno)} · Externo ${formatMoney(kpisA.presupuestoExterno)}`} />
+        <KpiCard title="Nº Total de Unidades" value={kpisA.totalUnidades.toLocaleString()} hint="Unidades registradas" />
       </div>
     </div>
 
@@ -949,12 +980,19 @@ const kpiGrid = !compareMode ? (
         borderRadius: 18,
         padding: 14,
         boxShadow: "0 18px 50px rgba(15,23,42,.08)",
+        minWidth: 0, // ✅ importante
       }}
     >
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
-        <div style={{ fontWeight: 950, color: palette.text, fontSize: 16 }}>
-          {uniB}
-        </div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+          gap: 12,
+          marginBottom: 10,
+        }}
+      >
+        <div style={{ fontWeight: 950, color: palette.text, fontSize: 16 }}>{uniB}</div>
         <div style={{ fontSize: 12, fontWeight: 900, color: "rgba(15,23,42,.55)" }}>
           Universidad B
         </div>
@@ -963,39 +1001,20 @@ const kpiGrid = !compareMode ? (
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gridTemplateColumns: responsiveColumns
+            ? "1fr"
+            : "repeat(2, minmax(0, 1fr))",
           gap: 12,
         }}
       >
-        <KpiCard
-          title="Total Estudiantes"
-          value={kpisB.totalEstudiantes.toLocaleString()}
-          hint="Estudiantes matriculados"
-        />
-        <KpiCard
-          title="Personal Académico"
-          value={kpisB.totalAcademico.toLocaleString()}
-          hint={`${Math.round(pct(kpisB.totalPhd, kpisB.totalAcademico))}% con PhD`}
-        />
-        <KpiCard
-          title="Presupuesto Total"
-          value={formatMoney(kpisB.presupuestoInterno + kpisB.presupuestoExterno)}
-          hint={`Interno ${formatMoney(kpisB.presupuestoInterno)} · Externo ${formatMoney(
-            kpisB.presupuestoExterno
-          )}`}
-        />
-        <KpiCard
-          title="Nº Total de Unidades"
-          value={kpisB.totalUnidades.toLocaleString()}
-          hint="Unidades registradas"
-        />
+        <KpiCard title="Total Estudiantes" value={kpisB.totalEstudiantes.toLocaleString()} hint="Estudiantes matriculados" />
+        <KpiCard title="Personal Académico" value={kpisB.totalAcademico.toLocaleString()} hint={`${Math.round(pct(kpisB.totalPhd, kpisB.totalAcademico))}% con PhD`} />
+        <KpiCard title="Presupuesto Total" value={formatMoney(kpisB.presupuestoInterno + kpisB.presupuestoExterno)} hint={`Interno ${formatMoney(kpisB.presupuestoInterno)} · Externo ${formatMoney(kpisB.presupuestoExterno)}`} />
+        <KpiCard title="Nº Total de Unidades" value={kpisB.totalUnidades.toLocaleString()} hint="Unidades registradas" />
       </div>
     </div>
   </div>
 );
-
-
-
 
   const chartsGrid = !compareMode ? (
   <div
